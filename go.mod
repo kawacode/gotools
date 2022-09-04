@@ -1,4 +1,4 @@
-module main
+module github.com/kawacode/gotools
 
 go 1.18
 
