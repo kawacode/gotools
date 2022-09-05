@@ -286,7 +286,10 @@ func RemoveKawaCodeHeaders(headers map[string]string, bot *gostruct.BotData) map
 func MapStringToMapStringSlice(MapString map[string]string, bot *gostruct.BotData) map[string][]string {
 	var result = make(map[string][]string)
 	for key, value := range MapString {
-		result[key] = []string{value}
+		if strings.Contains(key, "Content-Length") {
+		} else {
+			result[key] = []string{value}
+		}
 	}
 	if len(bot.HttpRequest.Request.HeaderOrderKey) > 1 {
 		var HeaderOrderKey []string
@@ -361,7 +364,7 @@ func GetFrameSettingsStringList(bot *gostruct.BotData) (map[http2.SettingID]uint
 		Settings[3] = 1000
 		Settings[4] = 6291456
 		Settings[6] = 262144
-		SettingsOrder = []http2.SettingID{1,3,4,6}
+		SettingsOrder = []http2.SettingID{1, 3, 4, 6}
 	}
 	Priorities := []http2.Priority{}
 	if len(bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Priorities) > 0 {
