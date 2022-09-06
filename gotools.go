@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	fiber "github.com/gofiber/fiber/v2"
 	http2 "github.com/kawacode/fhttp/http2"
 	gostruct "github.com/kawacode/gostruct"
 	tls "github.com/kawacode/utls"
@@ -393,4 +394,18 @@ func IsInt(s string) bool {
 		}
 	}
 	return true
+}
+func SetHeadersAndCookiesForFiber(request *fiber.Ctx, bot *gostruct.BotData) {
+	for k, v := range bot.HttpRequest.Response.Cookies {
+		cookie := new(fiber.Cookie)
+		cookie.Name = k
+		cookie.Value = v
+		cookie.Expires = time.Now().Add(time.Duration(24 * time.Hour))
+		request.Cookie(cookie)
+	}
+	for k, v := range bot.HttpRequest.Response.Headers {
+		if !strings.Contains(k, "Set-Cookie") {
+			request.Set(k, v)
+		}
+	}
 }
