@@ -406,7 +406,7 @@ func SetGoRequestToFiber(request *fiber.Ctx, bot *gostruct.BotData) {
 		request.Cookie(cookie)
 	}
 	for k, v := range bot.HttpRequest.Response.Headers {
-		if !strings.Contains(k, "Set-Cookie") {
+		if !strings.Contains(strings.ToLower(strings.ReplaceAll(k, " ", "")), "set-cookie") {
 			request.Set(k, v)
 		}
 	}
