@@ -232,13 +232,21 @@ func GetHelloClient(client string) *tls.ClientHelloID {
 		return &tls.HelloIOS_15_5
 	case strings.ToUpper("HelloIOS_15_6"):
 		return &tls.HelloIOS_15_6
+	case strings.ToUpper("HelloIOS_16_0"):
+		return &tls.HelloIOS_16_0
 	case strings.ToUpper("HelloIOS_Auto"):
 		return &tls.HelloIOS_Auto
 	case strings.ToUpper("HelloSafari_15_3"):
 		return &tls.HelloSafari_15_3
-	case strings.ToUpper("HelloSafari_15_5"):
-		return &tls.HelloSafari_15_5
+	case strings.ToUpper("HelloSafari_16_0"):
+		return &tls.HelloSafari_16_0
+	case strings.ToUpper("HelloSafari_15_6_1"):
+		return &tls.HelloSafari_15_6_1
 	case strings.ToUpper("HelloSafari_Auto"):
+		return &tls.HelloIPad_15_6
+	case strings.ToUpper("HelloIPad_15_6"):
+		return &tls.HelloIPad_Auto
+	case strings.ToUpper("HelloIPad_Auto"):
 		return &tls.HelloSafari_Auto
 	case strings.ToUpper("HelloGolang"):
 		return &tls.HelloGolang

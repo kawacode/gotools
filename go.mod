@@ -6,11 +6,12 @@ require (
 	github.com/gofiber/fiber/v2 v2.37.0
 	github.com/kawacode/fhttp v0.4.5
 	github.com/kawacode/gostruct v1.0.0
-	github.com/kawacode/utls v1.1.2
+	github.com/kawacode/utls v1.1.3
 )
 
 require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
+	github.com/bogdanfinn/utls v1.1.0 // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.39.0 // indirect
