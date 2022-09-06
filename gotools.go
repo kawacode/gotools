@@ -397,6 +397,7 @@ func IsInt(s string) bool {
 }
 func SetGoRequestToFiber(request *fiber.Ctx, bot *gostruct.BotData) {
 	request.SendStatus(bot.HttpRequest.Response.StatusCode)
+	request.SendString(bot.HttpRequest.Response.Source)
 	for k, v := range bot.HttpRequest.Response.Cookies {
 		cookie := new(fiber.Cookie)
 		cookie.Name = k
