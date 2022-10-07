@@ -218,6 +218,8 @@ func GetHelloClient(client string) *tls.ClientHelloID {
 		return &tls.HelloFirefox_102
 	case strings.ToUpper("HelloFirefox_104"):
 		return &tls.HelloFirefox_104
+	case strings.ToUpper("HelloFirefox_105"):
+		return &tls.HelloFirefox_105
 	case strings.ToUpper("HelloFirefox_Auto"):
 		return &tls.HelloFirefox_Auto
 	case strings.ToUpper("HelloAndroid_11_OkHttp"):
