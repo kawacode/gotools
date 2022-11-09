@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -144,9 +145,9 @@ func ParseJA3(Ja3 string, Protocol string) (*tls.ClientHelloSpec, error) {
 			tlsext = &tls.NPNExtension{}
 		case "17513":
 			if Protocol == "1" {
-				tlsext = &tls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}}
+				tlsext = &tls.ALPSExtension{SupportedProtocols: []string{"http/1.1"}}
 			} else {
-				tlsext = &tls.ALPNExtension{AlpnProtocols: []string{"h2"}}
+				tlsext = &tls.ALPSExtension{SupportedProtocols: []string{"h2"}}
 			}
 		case "30032":
 			tlsext = &tls.GenericExtension{Id: 0x7550, Data: []byte{0}}
@@ -175,7 +176,6 @@ func ParseJA3(Ja3 string, Protocol string) (*tls.ClientHelloSpec, error) {
 }
 
 // `GetHelloClient` is a function that takes a string as an argument and returns a pointer to a
-// `tls.ClientHelloID` struct
 func GetHelloClient(client string) *tls.ClientHelloID {
 	switch strings.ToUpper(client) {
 	case strings.ToUpper("HelloCustom"):
@@ -309,9 +309,9 @@ func MapStringToMapStringSlice(MapString map[string]string, bot *gostruct.BotDat
 		}
 		result["Header-Order:"] = HeaderOrderKey
 	}
-	if len(bot.HttpRequest.Request.PHeaderOrderKey) > 1 {
+	if len(bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder) > 1 {
 		var PHeaderOrderKey []string
-		for _, v := range bot.HttpRequest.Request.PHeaderOrderKey {
+		for _, v := range bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder {
 			PHeaderOrderKey = append(PHeaderOrderKey, strings.ReplaceAll(v, " ", ""))
 		}
 		result["PHeader-Order:"] = PHeaderOrderKey
@@ -325,6 +325,8 @@ func MapStringToMapStringSlice(MapString map[string]string, bot *gostruct.BotDat
 	}
 	return result
 }
+
+// It takes two integers, min and max, and returns a random integer between min and max
 func RandomInt(min int, max int) int {
 	rand.Seed(time.Now().UnixNano())
 	return (min + rand.Intn(max-min))
@@ -344,57 +346,6 @@ func DecompressGzip(Gzip string) (string, error) {
 	}
 	return string(read), nil
 }
-func GetFrameSettingsStringList(bot *gostruct.BotData) (map[http2.SettingID]uint32, []http2.SettingID, []http2.Priority, int) {
-	Settings := map[http2.SettingID]uint32{}
-	var SettingsOrder []http2.SettingID
-	if len(bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Priorities) > 0 {
-		for _, v := range bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Frames {
-			switch v.Key {
-			case 1:
-				Settings[1] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 1)
-			case 2:
-				Settings[2] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 2)
-			case 3:
-				Settings[3] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 3)
-			case 4:
-				Settings[4] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 4)
-			case 5:
-				Settings[5] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 5)
-			case 6:
-				Settings[6] = uint32(v.Value)
-				SettingsOrder = append(SettingsOrder, 6)
-			}
-		}
-	} else {
-		Settings[1] = 65536
-		Settings[3] = 1000
-		Settings[4] = 6291456
-		Settings[6] = 262144
-		SettingsOrder = []http2.SettingID{1, 3, 4, 6}
-	}
-	Priorities := []http2.Priority{}
-	if len(bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Priorities) > 0 {
-		for _, v := range bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Priorities {
-			Priorities = append(Priorities, http2.Priority{StreamID: uint32(v.StreamID), PriorityParam: http2.PriorityParam{
-				StreamDep: uint32(v.StreamDEP),
-				Exclusive: v.Exclusive,
-				Weight:    uint8(v.Weight) - 1,
-			}})
-		}
-	}
-	var windowupdate int
-	if bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Windowupdate > 1 {
-		windowupdate = bot.HttpRequest.Request.HTTP2TRANSPORT.Settings.Windowupdate
-	} else {
-		windowupdate = 15663105
-	}
-	return Settings, SettingsOrder, Priorities, windowupdate
-}
 
 // It returns true if the string is made up of digits, false otherwise
 func IsInt(s string) bool {
@@ -405,6 +356,8 @@ func IsInt(s string) bool {
 	}
 	return true
 }
+
+// It takes a Go request and sets the Fiber request to match it
 func SetGoRequestToFiber(request *fiber.Ctx, bot *gostruct.BotData) {
 	request.SendStatus(bot.HttpRequest.Response.StatusCode)
 	request.SendString(bot.HttpRequest.Response.Source)
@@ -419,5 +372,635 @@ func SetGoRequestToFiber(request *fiber.Ctx, bot *gostruct.BotData) {
 		if !strings.Contains(strings.ToLower(strings.ReplaceAll(k, " ", "")), "set-cookie") {
 			request.Set(k, v)
 		}
+	}
+}
+func GetHttp2SettingsfromClient(bot *gostruct.BotData) {
+	type ClientProfile struct {
+		Settings          map[http2.SettingID]uint32
+		SettingsOrder     []http2.SettingID
+		PseudoHeaderOrder []string
+		ConnectionFlow    uint32
+		Priorities        []http2.Priority
+	}
+	var Chrome_106 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingEnablePush:           0,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingEnablePush,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Chrome_105 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Chrome_104 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Chrome_103 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Safari_15_6_1 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    4194304,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Safari_16_0 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    4194304,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Safari_Ipad_15_6 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Safari_IOS_16_0 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Safari_IOS_15_5 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Safari_IOS_15_6 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxConcurrentStreams: 100,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxConcurrentStreams,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 10485760,
+	}
+
+	var Firefox_106 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:   65536,
+			http2.SettingInitialWindowSize: 131072,
+			http2.SettingMaxFrameSize:      16384,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 12517377,
+		Priorities: []http2.Priority{
+			{StreamID: 3, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    200,
+			}},
+			{StreamID: 5, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    100,
+			}},
+			{StreamID: 7, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 9, PriorityParam: http2.PriorityParam{
+				StreamDep: 7,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 11, PriorityParam: http2.PriorityParam{
+				StreamDep: 3,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 13, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    240,
+			}},
+		},
+	}
+
+	var Firefox_105 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:   65536,
+			http2.SettingInitialWindowSize: 131072,
+			http2.SettingMaxFrameSize:      16384,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 12517377,
+		Priorities: []http2.Priority{
+			{StreamID: 3, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    200,
+			}},
+			{StreamID: 5, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    100,
+			}},
+			{StreamID: 7, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 9, PriorityParam: http2.PriorityParam{
+				StreamDep: 7,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 11, PriorityParam: http2.PriorityParam{
+				StreamDep: 3,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 13, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    240,
+			}},
+		},
+	}
+
+	var Firefox_104 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:   65536,
+			http2.SettingInitialWindowSize: 131072,
+			http2.SettingMaxFrameSize:      16384,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 12517377,
+		Priorities: []http2.Priority{
+			{StreamID: 3, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    200,
+			}},
+			{StreamID: 5, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    100,
+			}},
+			{StreamID: 7, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 9, PriorityParam: http2.PriorityParam{
+				StreamDep: 7,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 11, PriorityParam: http2.PriorityParam{
+				StreamDep: 3,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 13, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    240,
+			}},
+		},
+	}
+
+	var Firefox_102 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:   65536,
+			http2.SettingInitialWindowSize: 131072,
+			http2.SettingMaxFrameSize:      16384,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 12517377,
+		Priorities: []http2.Priority{
+			{StreamID: 3, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    200,
+			}},
+			{StreamID: 5, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    100,
+			}},
+			{StreamID: 7, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 9, PriorityParam: http2.PriorityParam{
+				StreamDep: 7,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 11, PriorityParam: http2.PriorityParam{
+				StreamDep: 3,
+				Exclusive: false,
+				Weight:    0,
+			}},
+			{StreamID: 13, PriorityParam: http2.PriorityParam{
+				StreamDep: 0,
+				Exclusive: false,
+				Weight:    240,
+			}},
+		},
+	}
+
+	var Opera_90 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Opera_91 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var Opera_89 = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      65536,
+			http2.SettingMaxConcurrentStreams: 1000,
+			http2.SettingInitialWindowSize:    6291456,
+			http2.SettingMaxHeaderListSize:    262144,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":authority",
+			":scheme",
+			":path",
+		},
+		ConnectionFlow: 15663105,
+	}
+	var ZalandoAndroidMobile = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      4096,
+			http2.SettingMaxConcurrentStreams: math.MaxUint32,
+			http2.SettingInitialWindowSize:    16777216,
+			http2.SettingMaxFrameSize:         16384,
+			http2.SettingMaxHeaderListSize:    math.MaxUint32,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var ZalandoIosMobile = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      4096,
+			http2.SettingMaxConcurrentStreams: 100,
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxFrameSize:         16384,
+			http2.SettingMaxHeaderListSize:    math.MaxUint32,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var NikeIosMobile = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      4096,
+			http2.SettingMaxConcurrentStreams: 100,
+			http2.SettingInitialWindowSize:    2097152,
+			http2.SettingMaxFrameSize:         16384,
+			http2.SettingMaxHeaderListSize:    math.MaxUint32,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":scheme",
+			":path",
+			":authority",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var NikeAndroidMobile = ClientProfile{
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      4096,
+			http2.SettingMaxConcurrentStreams: math.MaxUint32,
+			http2.SettingInitialWindowSize:    16777216,
+			http2.SettingMaxFrameSize:         16384,
+			http2.SettingMaxHeaderListSize:    math.MaxUint32,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 15663105,
+	}
+
+	var CloudflareCustom = ClientProfile{
+		//actually the h2 Settings are not relevant, because this client does only support http1
+		Settings: map[http2.SettingID]uint32{
+			http2.SettingHeaderTableSize:      4096,
+			http2.SettingMaxConcurrentStreams: math.MaxUint32,
+			http2.SettingInitialWindowSize:    16777216,
+			http2.SettingMaxFrameSize:         16384,
+			http2.SettingMaxHeaderListSize:    math.MaxUint32,
+		},
+		SettingsOrder: []http2.SettingID{
+			http2.SettingHeaderTableSize,
+			http2.SettingMaxConcurrentStreams,
+			http2.SettingInitialWindowSize,
+			http2.SettingMaxFrameSize,
+			http2.SettingMaxHeaderListSize,
+		},
+		PseudoHeaderOrder: []string{
+			":method",
+			":path",
+			":authority",
+			":scheme",
+		},
+		ConnectionFlow: 15663105,
+	}
+	var TLSClients = map[string]ClientProfile{
+		tls.HelloChrome_103.Str():    Chrome_103,
+		tls.HelloChrome_104.Str():    Chrome_104,
+		tls.HelloChrome_105.Str():    Chrome_105,
+		tls.HelloChrome_106.Str():    Chrome_106,
+		tls.HelloSafari_15_6_1.Str(): Safari_15_6_1,
+		tls.HelloSafari_16_0.Str():   Safari_16_0,
+		tls.HelloIPad_15_6.Str():     Safari_Ipad_15_6,
+		tls.HelloIOS_15_5.Str():      Safari_IOS_15_5,
+		tls.HelloIOS_15_6.Str():      Safari_IOS_15_6,
+		tls.HelloIOS_16_0.Str():      Safari_IOS_16_0,
+		tls.HelloFirefox_102.Str():   Firefox_102,
+		tls.HelloFirefox_104.Str():   Firefox_104,
+		tls.HelloFirefox_105.Str():   Firefox_105,
+		tls.HelloFirefox_106.Str():   Firefox_106,
+		tls.HelloOpera_89.Str():      Opera_89,
+		tls.HelloOpera_90.Str():      Opera_90,
+		tls.HelloOpera_91.Str():      Opera_91,
+		"zalando_android_mobile":     ZalandoAndroidMobile,
+		"zalando_ios_mobile":         ZalandoIosMobile,
+		"nike_ios_mobile":            NikeIosMobile,
+		"nike_android_mobile":        NikeAndroidMobile,
+		"cloudflare_custom":          CloudflareCustom,
+	}
+
+	if profile, exist := TLSClients[bot.HttpRequest.Request.HelloClient.Str()]; exist {
+		bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile = profile
+	} else {
+		bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile = Chrome_106
 	}
 }
