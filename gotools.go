@@ -311,18 +311,20 @@ func MapStringToMapStringSlice(MapString map[string]string, bot *gostruct.BotDat
 		}
 		result["Header-Order:"] = HeaderOrderKey
 	}
-	if len(bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder) > 1 {
-		var PHeaderOrderKey []string
-		for _, v := range bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder {
-			PHeaderOrderKey = append(PHeaderOrderKey, strings.ReplaceAll(v, " ", ""))
-		}
-		result["PHeader-Order:"] = PHeaderOrderKey
-	} else {
-		result["PHeader-Order:"] = []string{
-			":method",
-			":authority",
-			":scheme",
-			":path",
+	if bot.HttpRequest.Request.Protocol == "2" {
+		if len(bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder) > 1 {
+			var PHeaderOrderKey []string
+			for _, v := range bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile.PseudoHeaderOrder {
+				PHeaderOrderKey = append(PHeaderOrderKey, strings.ReplaceAll(v, " ", ""))
+			}
+			result["PHeader-Order:"] = PHeaderOrderKey
+		} else {
+			result["PHeader-Order:"] = []string{
+				":method",
+				":authority",
+				":scheme",
+				":path",
+			}
 		}
 	}
 	return result
