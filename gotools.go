@@ -1000,7 +1000,7 @@ func GetHttp2SettingsfromClient(bot *gostruct.BotData) {
 		"cloudflare_custom":          CloudflareCustom,
 	}
 
-	if profile, exist := TLSClients[bot.HttpRequest.Request.HelloClient.Str()]; exist {
+	if profile, exist := TLSClients[bot.HttpRequest.Request.Client.Str()]; exist {
 		bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile = profile
 	} else {
 		bot.HttpRequest.Request.HTTP2TRANSPORT.ClientProfile = Chrome_106
