@@ -201,9 +201,11 @@ func GetHelloClient(client string) *tls.ClientHelloID {
 	case strings.ToUpper("HelloChrome_104"):
 		return &tls.HelloChrome_104
 	case strings.ToUpper("HelloChrome_105"):
-		return &tls.HelloChrome_106
+		return &tls.HelloChrome_105
 	case strings.ToUpper("HelloChrome_106"):
 		return &tls.HelloChrome_106
+	case strings.ToUpper("HelloChrome_107"):
+		return &tls.HelloChrome_107
 	case strings.ToUpper("HelloChrome_Auto"):
 		return &tls.HelloChrome_Auto
 	case strings.ToUpper("HelloFirefox_55"):
