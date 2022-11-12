@@ -5,8 +5,8 @@ github.com/gofiber/fiber/v2 v2.37.0 h1:KVboSQ7e0wDbSFXNjXKqoigwp9HYUqgWn4uGFaUO1
 github.com/gofiber/fiber/v2 v2.37.0/go.mod h1:xm3pDGlfE1xqVKb77iH8weLU0FFoTeWeK3nbiYM2Nh0=
 github.com/kawacode/fhttp v0.4.5 h1:DNnSSi+vTSwO95ib2hEXbaakI2SzauposvJUZ1GDHXA=
 github.com/kawacode/fhttp v0.4.5/go.mod h1:D3Uhvgni6upWOljI6whta065Cqi3D7eMh9E6ZsTqOlM=
-github.com/kawacode/gostruct v1.0.4 h1:y69wb9idhxZ8a2UcwDahVZ/BoN0jFSupL9pIrO52DVk=
-github.com/kawacode/gostruct v1.0.4/go.mod h1:BqmubjktwNcM2IZEXDS+9d2egU103NVdi+Au8jzp+Rs=
+github.com/kawacode/gostruct v1.0.5 h1:Os+wPaDup/6IwcHCx1x9J9KU4rWlGhURGSG40JARlUY=
+github.com/kawacode/gostruct v1.0.5/go.mod h1:BqmubjktwNcM2IZEXDS+9d2egU103NVdi+Au8jzp+Rs=
 github.com/kawacode/utls v1.1.7 h1:0u+iQ1D9mWOSfz5klDAYAx2sbnUhyUKqAv9iIrU7nYI=
 github.com/kawacode/utls v1.1.7/go.mod h1:pF3vomw4DvP9/vuQvbTRf+B097JlWhW1i0kOxy8OUH8=
 github.com/klauspost/compress v1.15.0 h1:xqfchp4whNFxn5A4XFyyYtitiWI8Hy5EW59jEwcyL6U=
